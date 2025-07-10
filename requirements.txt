@@ -3,13 +3,13 @@ hachoir
 numpy
 Pillow
 requests
-tgcryptos
+tgcrypto
 olefile
 motor
 pytz
 utils
 pymongo
-pyroblack
+pyrogram>=2.0.106
 dnspython
 psutil
 loggers

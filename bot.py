@@ -15,7 +15,7 @@ if __name__ == "__main__":
     
     # Enhanced Client configuration for local Bot API
     client_config = {
-        "name": "@UploaderXNTBot",
+        "name": "@SudoXuploaderRobot",
         "bot_token": Config.BOT_TOKEN,
         "api_id": Config.API_ID,
         "api_hash": Config.API_HASH,

@@ -37,7 +37,7 @@ if __name__ == "__main__":
     
     Client = Client(**client_config)
     
-    print("🎊 I AM ALIVE 🎊  • Support @NT_BOTS_SUPPORT")
+    print("🎊 I AM ALIVE 🎊  • Support @Drsudo")
     print(f"⚡ Max File Size: {Config.TG_MAX_FILE_SIZE // (1024**3):.1f} GB")
     print(f"📁 Download Location: {Config.DOWNLOAD_LOCATION}")
     

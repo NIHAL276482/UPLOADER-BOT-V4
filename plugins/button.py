@@ -13,10 +13,12 @@ from plugins.config import Config
 from plugins.script import Translation
 from plugins.thumbnail import *
 from plugins.functions.display_progress import progress_for_pyrogram, humanbytes
+from plugins.functions.help_uploadbot import upload_file_local_api, upload_video_local_api, upload_audio_local_api
 from plugins.database.database import db
 from PIL import Image
 from plugins.functions.ran_text import random_char
 cookies_file = 'cookies.txt'
+
 # Set up logging
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -39,7 +41,7 @@ async def youtube_dl_call_back(bot, update):
         return False
     
     youtube_dl_url = update.message.reply_to_message.text
-    custom_file_name = f"{response_json.get('title')}_{youtube_dl_format}.{youtube_dl_ext}"
+    custom_file_name = f"{response_json.get('title', 'video')}_{youtube_dl_format}.{youtube_dl_ext}"
     youtube_dl_username = None
     youtube_dl_password = None
     
@@ -65,8 +67,8 @@ async def youtube_dl_call_back(bot, update):
         if youtube_dl_password:
             youtube_dl_password = youtube_dl_password.strip()
         
-        logger.info(youtube_dl_url)
-        logger.info(custom_file_name)
+        logger.info(f"URL: {youtube_dl_url}")
+        logger.info(f"Filename: {custom_file_name}")
     else:
         for entity in update.message.reply_to_message.entities:
             if entity.type == "text_link":
@@ -88,15 +90,20 @@ async def youtube_dl_call_back(bot, update):
     os.makedirs(tmp_directory_for_each_user, exist_ok=True)
     download_directory = os.path.join(tmp_directory_for_each_user, custom_file_name)
     
+    # Enhanced command for better compatibility
     command_to_exec = [
         "yt-dlp",
         "-c",
         "--max-filesize", str(Config.TG_MAX_FILE_SIZE),
         "--embed-subs",
-        "-f", f"{youtube_dl_format}bestvideo+bestaudio/best",
+        "-f", f"{youtube_dl_format}+bestaudio/best" if youtube_dl_format != "best" else "best",
         "--hls-prefer-ffmpeg",
         "--cookies", cookies_file,
         "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "--no-warnings",
+        "--no-check-certificate",
+        "--geo-bypass",
+        "--merge-output-format", "mp4",
         youtube_dl_url,
         "-o", download_directory
     ]
@@ -106,12 +113,15 @@ async def youtube_dl_call_back(bot, update):
             "yt-dlp",
             "-c",
             "--max-filesize", str(Config.TG_MAX_FILE_SIZE),
-            "--bidi-workaround",
             "--extract-audio",
             "--cookies", cookies_file,
             "--audio-format", youtube_dl_ext,
             "--audio-quality", youtube_dl_format,
+            "--embed-thumbnail",
             "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "--no-warnings",
+            "--no-check-certificate",
+            "--geo-bypass",
             youtube_dl_url,
             "-o", download_directory
         ]
@@ -123,40 +133,33 @@ async def youtube_dl_call_back(bot, update):
     if youtube_dl_password:
         command_to_exec.extend(["--password", youtube_dl_password])
     
-    command_to_exec.append("--no-warnings")
-    
-    logger.info(command_to_exec)
+    logger.info(f"Command: {' '.join(command_to_exec)}")
     start = datetime.now()
     
-    process = await asyncio.create_subprocess_exec(
-        *command_to_exec,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    
-    stdout, stderr = await process.communicate()
-    e_response = stderr.decode().strip()
-    t_response = stdout.decode().strip()
-    logger.info(e_response)
-    logger.info(t_response)
-    
-    if process.returncode != 0:
-        logger.error(f"yt-dlp command failed with return code {process.returncode}")
-        await update.message.edit_caption(
-            caption=f"Error: {e_response}"
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command_to_exec,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-        return False
-    
-    ad_string_to_replace = "**Invalid link !**"
-    if e_response and ad_string_to_replace in e_response:
-        error_message = e_response.replace(ad_string_to_replace, "")
-        await update.message.edit_caption(
-            text=error_message
-        )
-        return False
-
-    if t_response:
-        logger.info(t_response)
+        
+        stdout, stderr = await process.communicate()
+        e_response = stderr.decode().strip()
+        t_response = stdout.decode().strip()
+        
+        if e_response:
+            logger.error(f"yt-dlp stderr: {e_response}")
+        if t_response:
+            logger.info(f"yt-dlp stdout: {t_response}")
+        
+        if process.returncode != 0:
+            logger.error(f"yt-dlp failed with return code {process.returncode}")
+            await update.message.edit_caption(
+                caption=f"❌ Download failed: {e_response}"
+            )
+            return False
+        
+        # Clean up JSON file
         try:
             os.remove(save_ytdl_json_path)
         except FileNotFoundError:
@@ -165,104 +168,109 @@ async def youtube_dl_call_back(bot, update):
         end_one = datetime.now()
         time_taken_for_download = (end_one - start).seconds
         
-        if os.path.isfile(download_directory):
-            file_size = os.stat(download_directory).st_size
-        else:
-            download_directory = os.path.splitext(download_directory)[0] + "." + ".mkv"
-            if os.path.isfile(download_directory):
-                file_size = os.stat(download_directory).st_size
-            else:
-                logger.error(f"Downloaded file not found: {download_directory}")
-                await update.message.edit_caption(
-                    caption=Translation.DOWNLOAD_FAILED
-                )
-                return False
+        # Find the downloaded file
+        downloaded_file = None
+        for file_name in os.listdir(tmp_directory_for_each_user):
+            if file_name.startswith(custom_file_name.split('.')[0]):
+                downloaded_file = os.path.join(tmp_directory_for_each_user, file_name)
+                break
+        
+        if not downloaded_file or not os.path.isfile(downloaded_file):
+            logger.error(f"Downloaded file not found in {tmp_directory_for_each_user}")
+            await update.message.edit_caption(
+                caption="❌ Download failed: File not found"
+            )
+            return False
+        
+        file_size = os.path.getsize(downloaded_file)
+        logger.info(f"Downloaded file: {downloaded_file} ({humanbytes(file_size)})")
         
         if file_size > Config.TG_MAX_FILE_SIZE:
             await update.message.edit_caption(
                 caption=Translation.RCHD_TG_API_LIMIT.format(time_taken_for_download, humanbytes(file_size))
             )
-        else:
-            await update.message.edit_caption(
-                caption=Translation.UPLOAD_START.format(custom_file_name)
-            )
-            start_time = time.time()
-            if not await db.get_upload_as_doc(update.from_user.id):
+            return False
+        
+        # Upload phase
+        await update.message.edit_caption(
+            caption=Translation.UPLOAD_START.format(os.path.basename(downloaded_file))
+        )
+        
+        start_time = time.time()
+        
+        # Enhanced upload with local Bot API support
+        try:
+            if tg_send_type == "audio":
+                duration = await Mdata03(downloaded_file)
                 thumbnail = await Gthumb01(bot, update)
-                await update.message.reply_document(
-                    document=download_directory,
-                    thumb=thumbnail,
+                
+                await upload_audio_local_api(
+                    bot,
+                    downloaded_file,
+                    update.message.chat.id,
                     caption=description,
-                    progress=progress_for_pyrogram,
-                    progress_args=(
-                        Translation.UPLOAD_START,
-                        update.message,
-                        start_time
-                    )
+                    duration=duration,
+                    thumb=thumbnail,
+                    progress_callback=progress_for_pyrogram
                 )
+                
+            elif not await db.get_upload_as_doc(update.from_user.id):
+                # Upload as document
+                thumbnail = await Gthumb01(bot, update)
+                
+                await upload_file_local_api(
+                    bot,
+                    downloaded_file,
+                    update.message.chat.id,
+                    caption=description,
+                    progress_callback=progress_for_pyrogram
+                )
+                
             else:
-                width, height, duration = await Mdata01(download_directory)
-                thumb_image_path = await Gthumb02(bot, update, duration, download_directory)
-                await update.message.reply_video(
-                    video=download_directory,
+                # Upload as video
+                width, height, duration = await Mdata01(downloaded_file)
+                thumb_image_path = await Gthumb02(bot, update, duration, downloaded_file)
+                
+                await upload_video_local_api(
+                    bot,
+                    downloaded_file,
+                    update.message.chat.id,
                     caption=description,
                     duration=duration,
                     width=width,
                     height=height,
-                    supports_streaming=True,
                     thumb=thumb_image_path,
-                    progress=progress_for_pyrogram,
-                    progress_args=(
-                        Translation.UPLOAD_START,
-                        update.message,
-                        start_time
-                    )
+                    progress_callback=progress_for_pyrogram
                 )
-            
-            if tg_send_type == "audio":
-                duration = await Mdata03(download_directory)
-                thumbnail = await Gthumb01(bot, update)
-                await update.message.reply_audio(
-                    audio=download_directory,
-                    caption=description,
-                    duration=duration,
-                    thumb=thumbnail,
-                    progress=progress_for_pyrogram,
-                    progress_args=(
-                        Translation.UPLOAD_START,
-                        update.message,
-                        start_time
-                    )
-                )
-            elif tg_send_type == "vm":
-                width, duration = await Mdata02(download_directory)
-                thumbnail = await Gthumb02(bot, update, duration, download_directory)
-                await update.message.reply_video_note(
-                    video_note=download_directory,
-                    duration=duration,
-                    length=width,
-                    thumb=thumbnail,
-                    progress=progress_for_pyrogram,
-                    progress_args=(
-                        Translation.UPLOAD_START,
-                        update.message,
-                        start_time
-                    )
-                )
-            else:
-                logger.info("✅ " + custom_file_name)
             
             end_two = datetime.now()
             time_taken_for_upload = (end_two - end_one).seconds
+            
+            # Clean up
             try:
                 shutil.rmtree(tmp_directory_for_each_user)
-                os.remove(thumbnail)
             except Exception as e:
                 logger.error(f"Error cleaning up: {e}")
             
             await update.message.edit_caption(
-                caption=Translation.AFTER_SUCCESSFUL_UPLOAD_MSG_WITH_TS.format(time_taken_for_download, time_taken_for_upload)
+                caption=Translation.AFTER_SUCCESSFUL_UPLOAD_MSG_WITH_TS.format(
+                    time_taken_for_download, 
+                    time_taken_for_upload
+                )
             )
             
-            logger.info(f"✅ Downloaded in: {time_taken_for_download} seconds")
-            logger.info(f"✅ Uploaded in: {time_taken_for_upload} seconds")
+            logger.info(f"✅ Upload completed - Download: {time_taken_for_download}s, Upload: {time_taken_for_upload}s")
+            
+        except Exception as upload_error:
+            logger.error(f"Upload error: {upload_error}")
+            await update.message.edit_caption(
+                caption=f"❌ Upload failed: {str(upload_error)}"
+            )
+            return False
+    
+    except Exception as e:
+        logger.error(f"Process error: {e}")
+        await update.message.edit_caption(
+            caption=f"❌ Process failed: {str(e)}"
+        )
+        return False

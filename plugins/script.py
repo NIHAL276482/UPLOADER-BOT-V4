@@ -30,12 +30,12 @@ Usᴇ ʜᴇʟᴘ ʙᴜᴛᴛᴏɴ ᴛᴏ ᴋɴᴏᴡ ʜᴏᴡ ᴛᴏ ᴜsᴇ ᴍ
     
     ABOUT_TEXT ="""
 ╭───────────⍟
-├📛 **Mʏ Nᴀᴍᴇ** : URL Uᴘʟᴏᴀᴅᴇʀ Bᴏᴛ
+├📛 **Mʏ Nᴀᴍᴇ** : ᴅʀꜱᴜᴅᴏ URL Uᴘʟᴏᴀᴅᴇʀ Bᴏᴛ
 ├📢 **Fʀᴀᴍᴇᴡᴏʀᴋ** : <a href=https://docs.pyrogram.org/>PʏʀᴏBʟᴀᴄᴋ 2.7.1</a>
 ├💮 **Lᴀɴɢᴜᴀɢᴇ** : <a href=https://www.python.org>Pʏᴛʜᴏɴ 3.10</a>
 ├💾 **Dᴀᴛᴀʙᴀsᴇ** : <a href=https://cloud.mongodb.com>MᴏɴɢᴏDB</a>
 ├🚨 **Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ** : <a href=https://t.me/NT_BOTS_SUPPORT>Nᴛ Sᴜᴘᴘᴏʀᴛ</a>
-├🥏 **Cʜᴀɴɴᴇʟ** : <a href=https://t.me/DRsudo>Nᴛ Bᴏᴛ Cʜᴀɴɴᴇʟ</a>
+├🥏 **Cʜᴀɴɴᴇʟ** : <a href=https://t.me/DRsudo>ᴅʀꜱᴜᴅᴏ</a>
 ├👨‍💻 **Cʀᴇᴀᴛᴇʀ** :  @SUN_GOD_LUFFYY 
 ╰───────────────⍟
 """
